@@ -11,7 +11,6 @@
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{ --cream:#faf6ef; --warm:#f0e8d8; --gold:#b8975a; --gold-light:#d4b483; --brown:#6b4f35; --text:#3a2e22; --muted:#9a8a76; --border:#e0d4c0; --white:#ffffff; --shadow:rgba(107,79,53,0.12); }
 body{background:var(--cream); color:var(--text); font-family:'Noto Serif KR',serif; min-height:100vh; overflow-x:hidden;}
-#app{position:relative; z-index:1}
 header{text-align:center; padding:52px 24px 36px; border-bottom:1px solid var(--border); position:relative;}
 .header-title{font-family:'Cormorant Garamond',serif; font-size:clamp(32px,6vw,52px); font-weight:300; color:var(--brown); line-height:1.15;}
 .header-title em{font-style:italic; color:var(--gold);}
@@ -58,8 +57,9 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
         <div class="field-group"><label class="field-label">나눔방 이름</label><input type="text" id="roomName" class="field-input" placeholder="예: 4월 4주차 순모임"></div>
         <div class="field-group"><label class="field-label">말씀 본문</label><input type="text" id="roomPassage" class="field-input" placeholder="예: 요한복음 15:1-11"></div>
         <div class="field-group"><label class="field-label">방장 이름</label><input type="text" id="hostName" class="field-input" placeholder="본인 성함을 적어주세요"></div>
+        <div class="field-group"><label class="field-label">방 입장 비밀번호 (비공개 선택 시 필수)</label><input type="password" id="roomPw" class="field-input" placeholder="숫자 4자리 추천"></div>
         <label class="checkbox-group">
-          <input type="checkbox" id="isPrivate"> 최근 목록에서 방 이름 숨기기 (링크 소유자만 접속)
+          <input type="checkbox" id="isPrivate"> 최근 목록에서 방 이름 숨기기 (비밀번호 아는 사람만 접속)
         </label>
         <button class="btn-primary" onclick="createRoom()">나눔방 만들기</button>
       </div>
@@ -68,21 +68,23 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
 
     <div id="roomView" style="display:none; padding:30px 0;">
       <button onclick="goHome()" style="background:none; border:none; cursor:pointer; color:var(--muted); margin-bottom:20px;">← 홈으로</button>
-      <div style="text-align:center; margin-bottom:40px;">
-        <h2 id="roomTitleDisplay" class="header-title" style="font-size:32px;"></h2>
-        <div id="roomPassageDisplay" style="color:var(--muted); margin:10px 0;"></div>
-        <div class="share-box"><span id="shareUrl" class="share-url"></span><button onclick="copyLink()" style="background:var(--gold); color:#fff; border:none; padding:5px 10px; border-radius:2px; cursor:pointer;">복사</button></div>
+      <div id="roomContent" style="display:none;">
+          <div style="text-align:center; margin-bottom:40px;">
+            <h2 id="roomTitleDisplay" class="header-title" style="font-size:32px;"></h2>
+            <div id="roomPassageDisplay" style="color:var(--muted); margin:10px 0;"></div>
+            <div class="share-box"><span id="shareUrl" class="share-url"></span><button onclick="copyLink()" style="background:var(--gold); color:#fff; border:none; padding:5px 10px; border-radius:2px; cursor:pointer;">복사</button></div>
+          </div>
+          <div class="write-section">
+            <h3 id="writeTitle" style="font-family:'Cormorant Garamond',serif; margin-bottom:20px;">나눔 올리기</h3>
+            <div class="field-group"><input type="text" id="authorName" class="field-input" placeholder="이름"></div>
+            <div class="field-group"><textarea id="meditation" class="field-input" rows="4" placeholder="오늘의 묵상을 나눠주세요"></textarea></div>
+            <div class="field-group"><input type="password" id="authorPw" class="field-input" placeholder="비밀번호 (수정/삭제용)"></div>
+            <input type="hidden" id="editingId" value="">
+            <button id="submitBtn" class="btn-primary" onclick="submitShare()">나눔 올리기</button>
+            <button id="cancelBtn" class="btn-primary" style="display:none; background:var(--muted);" onclick="cancelEdit()">취소</button>
+          </div>
+          <div id="shareCards"></div>
       </div>
-      <div class="write-section">
-        <h3 id="writeTitle" style="font-family:'Cormorant Garamond',serif; margin-bottom:20px;">나눔 올리기</h3>
-        <div class="field-group"><input type="text" id="authorName" class="field-input" placeholder="이름"></div>
-        <div class="field-group"><textarea id="meditation" class="field-input" rows="4" placeholder="오늘의 묵상을 나눠주세요"></textarea></div>
-        <div class="field-group"><input type="password" id="authorPw" class="field-input" placeholder="비밀번호 (수정/삭제용)"></div>
-        <input type="hidden" id="editingId" value="">
-        <button id="submitBtn" class="btn-primary" onclick="submitShare()">나눔 올리기</button>
-        <button id="cancelBtn" class="btn-primary" style="display:none; background:var(--muted);" onclick="cancelEdit()">취소</button>
-      </div>
-      <div id="shareCards"></div>
     </div>
   </main>
 </div>
@@ -107,14 +109,16 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
   window.createRoom = async () => {
     const name = document.getElementById('roomName').value;
     const host = document.getElementById('hostName').value;
+    const roomPw = document.getElementById('roomPw').value;
     const isPrivate = document.getElementById('isPrivate').checked;
     if(!name || !host) return showToast("방 이름과 방장을 입력해주세요");
-    const docRef = await addDoc(collection(db, "rooms"), { name, passage: document.getElementById('roomPassage').value, host, isPrivate, createdAt: Date.now() });
+    if(isPrivate && !roomPw) return showToast("비공개 방은 입장 비밀번호가 필수입니다");
+    const docRef = await addDoc(collection(db, "rooms"), { name, passage: document.getElementById('roomPassage').value, host, roomPw, isPrivate, createdAt: Date.now() });
     window.location.hash = `#room/${docRef.id}`;
   };
 
   window.deleteRoom = async (e, id) => {
-    e.stopPropagation(); // 방 클릭 이동 방지
+    e.stopPropagation();
     const host = prompt("방을 삭제하시겠습니까?\n방을 만든 방장 이름을 정확히 입력해주세요:");
     if (!host) return;
     const roomRef = doc(db, "rooms", id);
@@ -132,8 +136,19 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
     const docSnap = await getDoc(doc(db, "rooms", id));
     if (!docSnap.exists()) return showToast("방을 찾을 수 없습니다.");
     const room = docSnap.data();
+
+    if (room.isPrivate) {
+      const inputPw = prompt("비공개 나눔방입니다. 비밀번호를 입력하세요:");
+      if (inputPw !== room.roomPw) {
+        showToast("비밀번호가 틀렸습니다.");
+        window.location.hash = '';
+        return;
+      }
+    }
+
     document.getElementById('homeView').style.display = 'none';
     document.getElementById('roomView').style.display = 'block';
+    document.getElementById('roomContent').style.display = 'block';
     document.getElementById('roomTitleDisplay').textContent = room.name;
     document.getElementById('roomPassageDisplay').textContent = room.passage;
     document.getElementById('shareUrl').textContent = window.location.href;
@@ -153,6 +168,7 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
     });
   };
 
+  // (submitShare, startEdit, cancelEdit, deleteShare, renderRoomList 로직은 유지)
   window.submitShare = async () => {
     const roomId = window.location.hash.split('/')[1];
     const author = document.getElementById('authorName').value;
@@ -213,7 +229,7 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
       document.getElementById('roomList').innerHTML = snapshot.docs.map(doc => {
         const r = doc.data();
         const displayName = r.isPrivate ? "🔒 비공개 나눔방" : r.name;
-        const displayMeta = r.isPrivate ? "링크가 있는 분들만 참여 가능" : `${r.passage || '말씀'} | 방장: ${r.host}`;
+        const displayMeta = r.isPrivate ? "비밀번호를 아는 분들만 참여 가능" : `${r.passage || '말씀'} | 방장: ${r.host}`;
         return `<div class="room-item" onclick="location.hash='#room/${doc.id}'">
                   <div class="room-actions"><button class="action-btn" onclick="deleteRoom(event, '${doc.id}')">방 삭제</button></div>
                   <strong style="${r.isPrivate ? 'color:var(--muted); font-style:italic;' : ''}">${displayName}</strong><br>
@@ -225,7 +241,12 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
   const checkHash = () => {
     const hash = window.location.hash;
     if(hash.startsWith('#room/')) openRoom(hash.split('/')[1]);
-    else { document.getElementById('homeView').style.display = 'block'; document.getElementById('roomView').style.display = 'none'; renderRoomList(); }
+    else { 
+        document.getElementById('homeView').style.display = 'block'; 
+        document.getElementById('roomView').style.display = 'none'; 
+        document.getElementById('roomContent').style.display = 'none';
+        renderRoomList(); 
+    }
   };
   window.addEventListener('hashchange', checkHash);
   checkHash();
