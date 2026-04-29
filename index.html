@@ -9,7 +9,7 @@
 <style>
 /* ── 디자인 스타일 ── */
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-:root{ --cream:#faf6ef; --warm:#f0e8d8; --gold:#b8975a; --gold-light:#d4b483; --brown:#6b4f35; --text:#3a2e22; --muted:#9a8a76; --border:#e0d4c0; --white:#ffffff; --green:#4a7c6a; --green-light:#e8f2ee; --shadow:rgba(107,79,53,0.12); }
+:root{ --cream:#faf6ef; --warm:#f0e8d8; --gold:#b8975a; --gold-light:#d4b483; --brown:#6b4f35; --text:#3a2e22; --muted:#9a8a76; --border:#e0d4c0; --white:#ffffff; --shadow:rgba(107,79,53,0.12); }
 body{background:var(--cream); color:var(--text); font-family:'Noto Serif KR',serif; min-height:100vh; overflow-x:hidden;}
 #app{position:relative; z-index:1}
 header{text-align:center; padding:52px 24px 36px; border-bottom:1px solid var(--border); position:relative;}
@@ -24,7 +24,7 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
 .btn-primary:hover{background:var(--gold);}
 .share-card{padding:24px 28px; position:relative; animation:fadeUp 0.4s ease;}
 .sc-author{font-family:'Cormorant Garamond',serif; font-size:17px; color:var(--brown); font-weight:500;}
-.sc-actions{position:absolute; top:20px; right:20px; display:flex; gap:8px;}
+.sc-actions, .room-actions{position:absolute; top:20px; right:20px; display:flex; gap:8px;}
 .action-btn{background:none; border:none; color:var(--muted); font-size:11px; cursor:pointer; text-decoration:underline;}
 .share-box{display:flex; align-items:center; gap:8px; background:var(--warm); padding:10px; border-radius:3px; font-size:12px; margin-top:15px;}
 .share-url{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:monospace;}
@@ -33,8 +33,8 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
 #musicBar{position:fixed; bottom:24px; right:24px; z-index:100; background:rgba(255,255,255,0.92); border:1px solid var(--border); border-radius:40px; padding:8px 16px; display:flex; align-items:center; gap:10px; box-shadow:0 4px 20px var(--shadow); backdrop-filter:blur(12px); cursor:pointer;}
 #musicBtn{width:30px; height:30px; border-radius:50%; background:var(--gold); border:none; color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer;}
 @keyframes fadeUp{from{opacity:0; transform:translateY(12px)} to{opacity:1; transform:translateY(0)}}
-/* 체크박스 스타일 */
 .checkbox-group{display:flex; align-items:center; gap:8px; margin-bottom:18px; cursor:pointer; font-size:13px; color:var(--brown);}
+.room-item{position:relative; padding:15px; border:1px solid var(--border); margin-bottom:10px; background:#fff; border-radius:4px; cursor:pointer;}
 </style>
 </head>
 <body>
@@ -89,7 +89,7 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, limit, doc, getDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+  import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, limit, doc, getDoc, updateDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBzOuxk7W-7kXF7ocWcNWa6YkB3gwnWJYI",
@@ -109,14 +109,23 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
     const host = document.getElementById('hostName').value;
     const isPrivate = document.getElementById('isPrivate').checked;
     if(!name || !host) return showToast("방 이름과 방장을 입력해주세요");
-    const docRef = await addDoc(collection(db, "rooms"), { 
-      name, 
-      passage: document.getElementById('roomPassage').value, 
-      host, 
-      isPrivate,
-      createdAt: Date.now() 
-    });
+    const docRef = await addDoc(collection(db, "rooms"), { name, passage: document.getElementById('roomPassage').value, host, isPrivate, createdAt: Date.now() });
     window.location.hash = `#room/${docRef.id}`;
+  };
+
+  window.deleteRoom = async (e, id) => {
+    e.stopPropagation(); // 방 클릭 이동 방지
+    const host = prompt("방을 삭제하시겠습니까?\n방을 만든 방장 이름을 정확히 입력해주세요:");
+    if (!host) return;
+    const roomRef = doc(db, "rooms", id);
+    const roomSnap = await getDoc(roomRef);
+    if (roomSnap.data().host !== host) return alert("방장 이름이 일치하지 않습니다.");
+    if (confirm("방과 모든 나눔 글이 영구 삭제됩니다. 계속하시겠습니까?")) {
+      const shares = await getDocs(collection(db, `rooms/${id}/shares`));
+      for (const s of shares.docs) await deleteDoc(doc(db, `rooms/${id}/shares`, s.id));
+      await deleteDoc(roomRef);
+      showToast("방이 삭제되었습니다.");
+    }
   };
 
   window.openRoom = async (id) => {
@@ -151,7 +160,6 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
     const pw = document.getElementById('authorPw').value;
     const editingId = document.getElementById('editingId').value;
     if(!author || !meditation || !pw) return showToast("모든 항목을 입력해주세요");
-
     if (editingId) {
       const shareRef = doc(db, `rooms/${roomId}/shares`, editingId);
       const shareSnap = await getDoc(shareRef);
@@ -167,13 +175,47 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
     document.getElementById('authorPw').value = '';
   };
 
+  window.startEdit = async (shareId) => {
+    const roomId = window.location.hash.split('/')[1];
+    const shareSnap = await getDoc(doc(db, `rooms/${roomId}/shares`, shareId));
+    const data = shareSnap.data();
+    document.getElementById('authorName').value = data.author;
+    document.getElementById('meditation').value = data.meditation;
+    document.getElementById('editingId').value = shareId;
+    document.getElementById('writeTitle').textContent = "나눔 수정하기";
+    document.getElementById('submitBtn').textContent = "수정 완료";
+    document.getElementById('cancelBtn').style.display = "inline-block";
+    window.scrollTo({top: document.getElementById('writeTitle').offsetTop - 50, behavior: 'smooth'});
+  };
+
+  window.cancelEdit = () => {
+    document.getElementById('editingId').value = "";
+    document.getElementById('authorName').value = "";
+    document.getElementById('meditation').value = "";
+    document.getElementById('authorPw').value = "";
+    document.getElementById('writeTitle').textContent = "나눔 올리기";
+    document.getElementById('submitBtn').textContent = "나눔 올리기";
+    document.getElementById('cancelBtn').style.display = "none";
+  };
+
+  window.deleteShare = async (shareId) => {
+    const pw = prompt("비밀번호를 입력하세요:");
+    if (!pw) return;
+    const roomId = window.location.hash.split('/')[1];
+    const shareRef = doc(db, `rooms/${roomId}/shares`, shareId);
+    const shareSnap = await getDoc(shareRef);
+    if (shareSnap.data().pw !== pw) return alert("비밀번호가 틀렸습니다.");
+    if (confirm("정말로 삭제하시겠습니까?")) { await deleteDoc(shareRef); showToast("삭제되었습니다."); }
+  };
+
   window.renderRoomList = () => {
     onSnapshot(query(collection(db, "rooms"), orderBy("createdAt", "desc"), limit(10)), (snapshot) => {
       document.getElementById('roomList').innerHTML = snapshot.docs.map(doc => {
         const r = doc.data();
-        const displayName = r.isPrivate ? "🔒 비공개 나눔방입니다" : r.name;
-        const displayMeta = r.isPrivate ? "링크가 있는 분들만 참여 가능합니다" : `${r.passage || '말씀'} | 방장: ${r.host}`;
-        return `<div onclick="location.hash='#room/${doc.id}'" style="padding:15px; border:1px solid var(--border); margin-bottom:10px; cursor:pointer; background:#fff; border-radius:4px;">
+        const displayName = r.isPrivate ? "🔒 비공개 나눔방" : r.name;
+        const displayMeta = r.isPrivate ? "링크가 있는 분들만 참여 가능" : `${r.passage || '말씀'} | 방장: ${r.host}`;
+        return `<div class="room-item" onclick="location.hash='#room/${doc.id}'">
+                  <div class="room-actions"><button class="action-btn" onclick="deleteRoom(event, '${doc.id}')">방 삭제</button></div>
                   <strong style="${r.isPrivate ? 'color:var(--muted); font-style:italic;' : ''}">${displayName}</strong><br>
                   <small style="color:var(--muted)">${displayMeta}</small></div>`;
       }).join('');
