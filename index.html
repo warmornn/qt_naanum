@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>풍성한 삶 — CCC QT 나눔</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Noto+Serif+KR:wght@300;400;500&family=Noto+Sans+KR:wght@300;400&display=swap" rel="stylesheet">
+<style>
+/* ── 디자인 스타일 ── */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --cream:#faf6ef; --warm:#f0e8d8; --gold:#b8975a; --gold-light:#d4b483;
+  --brown:#6b4f35; --text:#3a2e22; --muted:#9a8a76; --border:#e0d4c0;
+  --white:#ffffff; --green:#4a7c6a; --green-light:#e8f2ee; --shadow:rgba(107,79,53,0.12);
+}
+body{background:var(--cream); color:var(--text); font-family:'Noto Serif KR',serif; min-height:100vh; overflow-x:hidden;}
+#app{position:relative; z-index:1}
+header{text-align:center; padding:52px 24px 36px; border-bottom:1px solid var(--border); position:relative;}
+.header-title{font-family:'Cormorant Garamond',serif; font-size:clamp(32px,6vw,52px); font-weight:300; color:var(--brown); line-height:1.15;}
+.header-title em{font-style:italic; color:var(--gold);}
+main{max-width:780px; margin:0 auto; padding:0 24px}
+.create-card, .write-section, .share-card {background:var(--white); border:1px solid var(--border); border-radius:4px; padding:32px; margin-bottom:32px; box-shadow:0 2px 12px var(--shadow);}
+.field-group{margin-bottom:18px}
+.field-label{font-size:12px; color:var(--muted); margin-bottom:7px; display:block;}
+.field-input{width:100%; padding:11px 14px; border:1px solid var(--border); border-radius:3px; background:var(--cream); font-family:inherit; outline:none;}
+.btn-primary{background:var(--brown); color:var(--cream); border:none; padding:12px 28px; cursor:pointer; border-radius:3px; transition:0.2s;}
+.btn-primary:hover{background:var(--gold);}
+.share-card{padding:24px 28px; animation:fadeUp 0.4s ease;}
+@keyframes fadeUp{from{opacity:0; transform:translateY(12px)} to{opacity:1; transform:translateY(0)}}
+.sc-author{font-family:'Cormorant Garamond',serif; font-size:17px; color:var(--brown); font-weight:500;}
+.share-box{display:flex; align-items:center; gap:8px; background:var(--warm); padding:10px; border-radius:3px; font-size:12px; margin-top:15px;}
+.share-url{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:monospace;}
+#toast{position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:var(--brown); color:#fff; padding:10px 24px; border-radius:24px; opacity:0; transition:0.3s; z-index:200; pointer-events:none;}
+#toast.show{opacity:1}
+#musicBar{position:fixed; bottom:24px; right:24px; z-index:100; background:rgba(255,255,255,0.92); border:1px solid var(--border); border-radius:40px; padding:8px 16px; display:flex; align-items:center; gap:10px; box-shadow:0 4px 20px var(--shadow); backdrop-filter:blur(12px); cursor:pointer;}
+#musicBtn{width:30px; height:30px; border-radius:50%; background:var(--gold); border:none; color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer;}
+</style>
+</head>
+<body>
+
+<div id="ytPlayer"></div>
+<div id="musicBar" onclick="toggleMusic()"><button id="musicBtn">♪</button><div><div style="font-size:11px; color:var(--brown)">풍성한 삶</div><div style="font-size:10px; color:var(--muted)">배경 찬양</div></div></div>
+<div id="toast"></div>
+
+<div id="app">
+  <header>
+    <div style="font-size:11px; letter-spacing:.3em; color:var(--gold)">CCC · CAMPUS CRUSADE FOR CHRIST</div>
+    <h1 class="header-title">풍성한 <em>삶</em></h1>
+    <p style="font-size:13px; color:var(--muted); margin-top:10px;">함께 나누는 실시간 QT 공간</p>
+  </header>
+
+  <main>
+    <div id="homeView">
+      <div style="padding:40px 0; text-align:center; font-style:italic; color:var(--brown)">"내가 온 것은 양으로 생명을 얻게 하고 더 풍성히 얻게 하려는 것이라" (요 10:10)</div>
+      <div class="create-card">
+        <h2 style="font-family:'Cormorant Garamond',serif; margin-bottom:20px;">새 나눔방 만들기</h2>
+        <div class="field-group"><label class="field-label">나눔방 이름</label><input type="text" id="roomName" class="field-input" placeholder="예: 4월 4주차 순모임"></div>
+        <div class="field-group"><label class="field-label">말씀 본문</label><input type="text" id="roomPassage" class="field-input" placeholder="예: 요한복음 15:1-11"></div>
+        <div class="field-group"><label class="field-label">방장 이름</label><input type="text" id="hostName" class="field-input" placeholder="본인 성함을 적어주세요"></div>
+        <button class="btn-primary" onclick="createRoom()">나눔방 만들기</button>
+      </div>
+      <div id="roomListSection"><div style="font-size:11px; letter-spacing:.1em; color:var(--muted); margin-bottom:15px;">최근 나눔방</div><div id="roomList"></div></div>
+    </div>
+
+    <div id="roomView" style="display:none; padding:30px 0;">
+      <button onclick="goHome()" style="background:none; border:none; cursor:pointer; color:var(--muted); margin-bottom:20px;">← 홈으로</button>
+      <div style="text-align:center; margin-bottom:40px;">
+        <h2 id="roomTitleDisplay" class="header-title" style="font-size:32px;"></h2>
+        <div id="roomPassageDisplay" style="color:var(--muted); margin:10px 0;"></div>
+        <div class="share-box"><span id="shareUrl" class="share-url"></span><button onclick="copyLink()" style="background:var(--gold); color:#fff; border:none; padding:5px 10px; border-radius:2px; cursor:pointer;">복사</button></div>
+      </div>
+      <div class="write-section">
+        <h3 style="font-family:'Cormorant Garamond',serif; margin-bottom:20px;">나눔 올리기</h3>
+        <div class="field-group"><input type="text" id="authorName" class="field-input" placeholder="이름"></div>
+        <div class="field-group"><textarea id="meditation" class="field-input" rows="4" placeholder="오늘의 묵상을 나눠주세요"></textarea></div>
+        <button class="btn-primary" onclick="submitShare()">나눔 올리기</button>
+      </div>
+      <div id="shareCards"></div>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, limit, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBzOuxk7W-7kXF7ocWcNWa6YkB3gwnWJYI",
+    authDomain: "qt-nannum.firebaseapp.com",
+    projectId: "qt-nannum",
+    storageBucket: "qt-nannum.firebasestorage.app",
+    messagingSenderId: "196964200109",
+    appId: "1:196964200109:web:50492dc73cb291f8402024",
+    measurementId: "G-VWX397FMG8"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  window.createRoom = async () => {
+    const name = document.getElementById('roomName').value;
+    const host = document.getElementById('hostName').value;
+    if(!name || !host) return showToast("방 이름과 방장을 입력해주세요");
+    const docRef = await addDoc(collection(db, "rooms"), { name, passage: document.getElementById('roomPassage').value, host, createdAt: Date.now() });
+    window.location.hash = `#room/${docRef.id}`;
+  };
+
+  window.openRoom = async (id) => {
+    const docSnap = await getDoc(doc(db, "rooms", id));
+    if (!docSnap.exists()) return showToast("방을 찾을 수 없습니다.");
+    const room = docSnap.data();
+    document.getElementById('homeView').style.display = 'none';
+    document.getElementById('roomView').style.display = 'block';
+    document.getElementById('roomTitleDisplay').textContent = room.name;
+    document.getElementById('roomPassageDisplay').textContent = room.passage;
+    document.getElementById('shareUrl').textContent = window.location.href;
+
+    onSnapshot(query(collection(db, `rooms/${id}/shares`), orderBy("ts", "desc")), (snapshot) => {
+      document.getElementById('shareCards').innerHTML = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return `<div class="share-card"><div class="sc-author">${data.author}</div><div style="font-size:14px; margin-top:10px; white-space:pre-wrap;">${data.meditation}</div></div>`;
+      }).join('');
+    });
+  };
+
+  window.submitShare = async () => {
+    const roomId = window.location.hash.split('/')[1];
+    const author = document.getElementById('authorName').value;
+    const meditation = document.getElementById('meditation').value;
+    if(!author || !meditation) return showToast("이름과 내용을 입력해주세요");
+    await addDoc(collection(db, `rooms/${roomId}/shares`), { author, meditation, ts: Date.now() });
+    document.getElementById('meditation').value = '';
+    showToast("나눔 완료 🙏");
+  };
+
+  window.renderRoomList = () => {
+    onSnapshot(query(collection(db, "rooms"), orderBy("createdAt", "desc"), limit(5)), (snapshot) => {
+      document.getElementById('roomList').innerHTML = snapshot.docs.map(doc => {
+        const r = doc.data();
+        return `<div onclick="location.hash='#room/${doc.id}'" style="padding:15px; border:1px solid var(--border); margin-bottom:10px; cursor:pointer; background:#fff; border-radius:4px;">
+                  <strong>${r.name}</strong><br><small>${r.passage || '말씀'} | 방장: ${r.host}</small></div>`;
+      }).join('');
+    });
+  };
+
+  const checkHash = () => {
+    const hash = window.location.hash;
+    if(hash.startsWith('#room/')) openRoom(hash.split('/')[1]);
+    else { document.getElementById('homeView').style.display = 'block'; document.getElementById('roomView').style.display = 'none'; renderRoomList(); }
+  };
+  window.addEventListener('hashchange', checkHash);
+  checkHash();
+</script>
+
+<script>
+  let ytPlayer, isPlaying = false;
+  function onYouTubeIframeAPIReady() { ytPlayer = new YT.Player('ytPlayer', { height: '0', width: '0', videoId: '_nsDTev4yCY', playerVars: { loop: 1, playlist: '_nsDTev4yCY' } }); }
+  function toggleMusic() { if(!ytPlayer) return; isPlaying ? ytPlayer.pauseVideo() : ytPlayer.playVideo(); isPlaying = !isPlaying; document.getElementById('musicBtn').textContent = isPlaying ? '‖' : '♪'; }
+  function copyLink() { navigator.clipboard.writeText(document.getElementById('shareUrl').textContent); showToast("링크 복사 완료!"); }
+  function showToast(m) { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2000); }
+  function goHome() { window.location.hash = ''; }
+  const tag = document.createElement('script'); tag.src = "https://www.youtube.com/iframe_api"; document.head.appendChild(tag);
+</script>
+</body>
+</html>
