@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Noto+Serif+KR:wght@300;400;500&family=Noto+Sans+KR:wght@300;400&display=swap" rel="stylesheet">
 <style>
-/* ── 기존 스타일 유지 + 관리 버튼 스타일 추가 ── */
+/* ── 디자인 스타일 ── */
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{ --cream:#faf6ef; --warm:#f0e8d8; --gold:#b8975a; --gold-light:#d4b483; --brown:#6b4f35; --text:#3a2e22; --muted:#9a8a76; --border:#e0d4c0; --white:#ffffff; --green:#4a7c6a; --green-light:#e8f2ee; --shadow:rgba(107,79,53,0.12); }
 body{background:var(--cream); color:var(--text); font-family:'Noto Serif KR',serif; min-height:100vh; overflow-x:hidden;}
@@ -26,7 +26,6 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
 .sc-author{font-family:'Cormorant Garamond',serif; font-size:17px; color:var(--brown); font-weight:500;}
 .sc-actions{position:absolute; top:20px; right:20px; display:flex; gap:8px;}
 .action-btn{background:none; border:none; color:var(--muted); font-size:11px; cursor:pointer; text-decoration:underline;}
-.action-btn:hover{color:var(--gold);}
 .share-box{display:flex; align-items:center; gap:8px; background:var(--warm); padding:10px; border-radius:3px; font-size:12px; margin-top:15px;}
 .share-url{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:monospace;}
 #toast{position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:var(--brown); color:#fff; padding:10px 24px; border-radius:24px; opacity:0; transition:0.3s; z-index:200; pointer-events:none;}
@@ -34,6 +33,8 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
 #musicBar{position:fixed; bottom:24px; right:24px; z-index:100; background:rgba(255,255,255,0.92); border:1px solid var(--border); border-radius:40px; padding:8px 16px; display:flex; align-items:center; gap:10px; box-shadow:0 4px 20px var(--shadow); backdrop-filter:blur(12px); cursor:pointer;}
 #musicBtn{width:30px; height:30px; border-radius:50%; background:var(--gold); border:none; color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer;}
 @keyframes fadeUp{from{opacity:0; transform:translateY(12px)} to{opacity:1; transform:translateY(0)}}
+/* 체크박스 스타일 */
+.checkbox-group{display:flex; align-items:center; gap:8px; margin-bottom:18px; cursor:pointer; font-size:13px; color:var(--brown);}
 </style>
 </head>
 <body>
@@ -57,6 +58,9 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
         <div class="field-group"><label class="field-label">나눔방 이름</label><input type="text" id="roomName" class="field-input" placeholder="예: 4월 4주차 순모임"></div>
         <div class="field-group"><label class="field-label">말씀 본문</label><input type="text" id="roomPassage" class="field-input" placeholder="예: 요한복음 15:1-11"></div>
         <div class="field-group"><label class="field-label">방장 이름</label><input type="text" id="hostName" class="field-input" placeholder="본인 성함을 적어주세요"></div>
+        <label class="checkbox-group">
+          <input type="checkbox" id="isPrivate"> 최근 목록에서 방 이름 숨기기 (링크 소유자만 접속)
+        </label>
         <button class="btn-primary" onclick="createRoom()">나눔방 만들기</button>
       </div>
       <div id="roomListSection"><div style="font-size:11px; letter-spacing:.1em; color:var(--muted); margin-bottom:15px;">최근 나눔방</div><div id="roomList"></div></div>
@@ -103,8 +107,15 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
   window.createRoom = async () => {
     const name = document.getElementById('roomName').value;
     const host = document.getElementById('hostName').value;
+    const isPrivate = document.getElementById('isPrivate').checked;
     if(!name || !host) return showToast("방 이름과 방장을 입력해주세요");
-    const docRef = await addDoc(collection(db, "rooms"), { name, passage: document.getElementById('roomPassage').value, host, createdAt: Date.now() });
+    const docRef = await addDoc(collection(db, "rooms"), { 
+      name, 
+      passage: document.getElementById('roomPassage').value, 
+      host, 
+      isPrivate,
+      createdAt: Date.now() 
+    });
     window.location.hash = `#room/${docRef.id}`;
   };
 
@@ -139,7 +150,6 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
     const meditation = document.getElementById('meditation').value;
     const pw = document.getElementById('authorPw').value;
     const editingId = document.getElementById('editingId').value;
-
     if(!author || !meditation || !pw) return showToast("모든 항목을 입력해주세요");
 
     if (editingId) {
@@ -153,54 +163,19 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
       await addDoc(collection(db, `rooms/${roomId}/shares`), { author, meditation, pw, ts: Date.now() });
       showToast("나눔 완료 🙏");
     }
-    
     document.getElementById('meditation').value = '';
     document.getElementById('authorPw').value = '';
   };
 
-  window.startEdit = async (shareId) => {
-    const roomId = window.location.hash.split('/')[1];
-    const shareSnap = await getDoc(doc(db, `rooms/${roomId}/shares`, shareId));
-    const data = shareSnap.data();
-    
-    document.getElementById('authorName').value = data.author;
-    document.getElementById('meditation').value = data.meditation;
-    document.getElementById('editingId').value = shareId;
-    document.getElementById('writeTitle').textContent = "나눔 수정하기";
-    document.getElementById('submitBtn').textContent = "수정 완료";
-    document.getElementById('cancelBtn').style.display = "inline-block";
-    window.scrollTo({top: document.getElementById('writeTitle').offsetTop - 50, behavior: 'smooth'});
-  };
-
-  window.cancelEdit = () => {
-    document.getElementById('editingId').value = "";
-    document.getElementById('authorName').value = "";
-    document.getElementById('meditation').value = "";
-    document.getElementById('authorPw').value = "";
-    document.getElementById('writeTitle').textContent = "나눔 올리기";
-    document.getElementById('submitBtn').textContent = "나눔 올리기";
-    document.getElementById('cancelBtn').style.display = "none";
-  };
-
-  window.deleteShare = async (shareId) => {
-    const pw = prompt("비밀번호를 입력하세요:");
-    if (!pw) return;
-    const roomId = window.location.hash.split('/')[1];
-    const shareRef = doc(db, `rooms/${roomId}/shares`, shareId);
-    const shareSnap = await getDoc(shareRef);
-    if (shareSnap.data().pw !== pw) return alert("비밀번호가 틀렸습니다.");
-    if (confirm("정말로 삭제하시겠습니까?")) {
-      await deleteDoc(shareRef);
-      showToast("삭제되었습니다.");
-    }
-  };
-
   window.renderRoomList = () => {
-    onSnapshot(query(collection(db, "rooms"), orderBy("createdAt", "desc"), limit(5)), (snapshot) => {
+    onSnapshot(query(collection(db, "rooms"), orderBy("createdAt", "desc"), limit(10)), (snapshot) => {
       document.getElementById('roomList').innerHTML = snapshot.docs.map(doc => {
         const r = doc.data();
+        const displayName = r.isPrivate ? "🔒 비공개 나눔방입니다" : r.name;
+        const displayMeta = r.isPrivate ? "링크가 있는 분들만 참여 가능합니다" : `${r.passage || '말씀'} | 방장: ${r.host}`;
         return `<div onclick="location.hash='#room/${doc.id}'" style="padding:15px; border:1px solid var(--border); margin-bottom:10px; cursor:pointer; background:#fff; border-radius:4px;">
-                  <strong>${r.name}</strong><br><small>${r.passage || '말씀'} | 방장: ${r.host}</small></div>`;
+                  <strong style="${r.isPrivate ? 'color:var(--muted); font-style:italic;' : ''}">${displayName}</strong><br>
+                  <small style="color:var(--muted)">${displayMeta}</small></div>`;
       }).join('');
     });
   };
