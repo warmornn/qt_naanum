@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Noto+Serif+KR:wght@300;400;500&family=Noto+Sans+KR:wght@300;400&display=swap" rel="stylesheet">
 <style>
-/* ── 디자인 스타일 ── */
+/* ── 디자인 스타일 (동일) ── */
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{ --cream:#faf6ef; --warm:#f0e8d8; --gold:#b8975a; --gold-light:#d4b483; --brown:#6b4f35; --text:#3a2e22; --muted:#9a8a76; --border:#e0d4c0; --white:#ffffff; --shadow:rgba(107,79,53,0.12); }
 body{background:var(--cream); color:var(--text); font-family:'Noto Serif KR',serif; min-height:100vh; overflow-x:hidden;}
@@ -57,9 +57,9 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
         <div class="field-group"><label class="field-label">나눔방 이름</label><input type="text" id="roomName" class="field-input" placeholder="예: 4월 4주차 순모임"></div>
         <div class="field-group"><label class="field-label">말씀 본문</label><input type="text" id="roomPassage" class="field-input" placeholder="예: 요한복음 15:1-11"></div>
         <div class="field-group"><label class="field-label">방장 이름</label><input type="text" id="hostName" class="field-input" placeholder="본인 성함을 적어주세요"></div>
-        <div class="field-group"><label class="field-label">방 입장 비밀번호 (비공개 선택 시 필수)</label><input type="password" id="roomPw" class="field-input" placeholder="숫자 4자리 추천"></div>
+        <div class="field-group"><label class="field-label">방 비밀번호 (입장 및 삭제용)</label><input type="password" id="roomPw" class="field-input" placeholder="숫자 4자리 등 자유롭게"></div>
         <label class="checkbox-group">
-          <input type="checkbox" id="isPrivate"> 최근 목록에서 방 이름 숨기기 (비밀번호 아는 사람만 접속)
+          <input type="checkbox" id="isPrivate"> 최근 목록에서 방 이름 숨기기
         </label>
         <button class="btn-primary" onclick="createRoom()">나눔방 만들기</button>
       </div>
@@ -78,7 +78,7 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
             <h3 id="writeTitle" style="font-family:'Cormorant Garamond',serif; margin-bottom:20px;">나눔 올리기</h3>
             <div class="field-group"><input type="text" id="authorName" class="field-input" placeholder="이름"></div>
             <div class="field-group"><textarea id="meditation" class="field-input" rows="4" placeholder="오늘의 묵상을 나눠주세요"></textarea></div>
-            <div class="field-group"><input type="password" id="authorPw" class="field-input" placeholder="비밀번호 (수정/삭제용)"></div>
+            <div class="field-group"><input type="password" id="authorPw" class="field-input" placeholder="글 비밀번호 (수정/삭제용)"></div>
             <input type="hidden" id="editingId" value="">
             <button id="submitBtn" class="btn-primary" onclick="submitShare()">나눔 올리기</button>
             <button id="cancelBtn" class="btn-primary" style="display:none; background:var(--muted);" onclick="cancelEdit()">취소</button>
@@ -111,19 +111,18 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
     const host = document.getElementById('hostName').value;
     const roomPw = document.getElementById('roomPw').value;
     const isPrivate = document.getElementById('isPrivate').checked;
-    if(!name || !host) return showToast("방 이름과 방장을 입력해주세요");
-    if(isPrivate && !roomPw) return showToast("비공개 방은 입장 비밀번호가 필수입니다");
+    if(!name || !host || !roomPw) return showToast("방 이름, 방장 성함, 비밀번호를 모두 입력해주세요");
     const docRef = await addDoc(collection(db, "rooms"), { name, passage: document.getElementById('roomPassage').value, host, roomPw, isPrivate, createdAt: Date.now() });
     window.location.hash = `#room/${docRef.id}`;
   };
 
   window.deleteRoom = async (e, id) => {
     e.stopPropagation();
-    const host = prompt("방을 삭제하시겠습니까?\n방을 만든 방장 이름을 정확히 입력해주세요:");
-    if (!host) return;
+    const inputPw = prompt("방을 삭제하려면 방 비밀번호를 입력하세요:");
+    if (!inputPw) return;
     const roomRef = doc(db, "rooms", id);
     const roomSnap = await getDoc(roomRef);
-    if (roomSnap.data().host !== host) return alert("방장 이름이 일치하지 않습니다.");
+    if (roomSnap.data().roomPw !== inputPw) return alert("비밀번호가 일치하지 않습니다.");
     if (confirm("방과 모든 나눔 글이 영구 삭제됩니다. 계속하시겠습니까?")) {
       const shares = await getDocs(collection(db, `rooms/${id}/shares`));
       for (const s of shares.docs) await deleteDoc(doc(db, `rooms/${id}/shares`, s.id));
@@ -168,18 +167,17 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
     });
   };
 
-  // (submitShare, startEdit, cancelEdit, deleteShare, renderRoomList 로직은 유지)
   window.submitShare = async () => {
     const roomId = window.location.hash.split('/')[1];
     const author = document.getElementById('authorName').value;
     const meditation = document.getElementById('meditation').value;
     const pw = document.getElementById('authorPw').value;
     const editingId = document.getElementById('editingId').value;
-    if(!author || !meditation || !pw) return showToast("모든 항목을 입력해주세요");
+    if(!author || !meditation || !pw) return showToast("이름, 내용, 글 비밀번호를 입력해주세요");
     if (editingId) {
       const shareRef = doc(db, `rooms/${roomId}/shares`, editingId);
       const shareSnap = await getDoc(shareRef);
-      if (shareSnap.data().pw !== pw) return showToast("비밀번호가 틀렸습니다.");
+      if (shareSnap.data().pw !== pw) return showToast("글 비밀번호가 틀렸습니다.");
       await updateDoc(shareRef, { author, meditation, ts: Date.now() });
       showToast("수정 완료 ✨");
       cancelEdit();
@@ -215,12 +213,12 @@ main{max-width:780px; margin:0 auto; padding:0 24px}
   };
 
   window.deleteShare = async (shareId) => {
-    const pw = prompt("비밀번호를 입력하세요:");
+    const pw = prompt("이 글을 삭제하려면 글 비밀번호를 입력하세요:");
     if (!pw) return;
     const roomId = window.location.hash.split('/')[1];
     const shareRef = doc(db, `rooms/${roomId}/shares`, shareId);
     const shareSnap = await getDoc(shareRef);
-    if (shareSnap.data().pw !== pw) return alert("비밀번호가 틀렸습니다.");
+    if (shareSnap.data().pw !== pw) return alert("글 비밀번호가 틀렸습니다.");
     if (confirm("정말로 삭제하시겠습니까?")) { await deleteDoc(shareRef); showToast("삭제되었습니다."); }
   };
 
